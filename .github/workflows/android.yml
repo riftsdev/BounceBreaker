@@ -3,6 +3,8 @@ on:
   workflow_dispatch:
   push:
     branches: [main, master]
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -14,7 +16,7 @@ jobs:
           java-version: '17'
       - name: Install Android SDK components
         run: |
-          echo "y" | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -22,7 +24,18 @@ jobs:
           gradle-version: '8.9'
       - name: Build APK
         run: gradle --no-daemon :app:assembleDebug
+      - name: Prepare public APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk BounceBreaker.apk
       - uses: actions/upload-artifact@v4
         with:
           name: BounceBreaker-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: BounceBreaker.apk
+      - name: Publish public download on GitHub Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view latest >/dev/null 2>&1; then
+            gh release upload latest BounceBreaker.apk --clobber
+          else
+            gh release create latest BounceBreaker.apk --title "Bounce Breaker - Android" --notes "Baixe BounceBreaker.apk para instalar no Android. Versão de testes, assinada com chave de depuração."
+          fi
